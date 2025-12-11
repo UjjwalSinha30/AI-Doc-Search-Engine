@@ -1,13 +1,12 @@
+# backend/api/utils.py
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from fastapi import Cookie, HTTPException, Depends
 from sqlalchemy.orm import Session
-from models import User
-from schemas import UserCreate
-from database import get_db
-from fastapi import Depends, HTTPException
-
-
+from backend.models.models import User
+from backend.schema.schemas import UserCreate
+from backend.db.database import get_db
 
 SECRET_KEY = "your-super-secret-jwt-key-change-in-prod"
 ALGORITHM = "HS256"
@@ -48,10 +47,7 @@ def create_refresh_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token: str = None):
-    from fastapi import Cookie, HTTPException
-    if not token:
-        token = Cookie(None, alias="refresh_token")
+def verify_token(token: str = Cookie(None, alias="refresh_token")):
     if not token:
         raise HTTPException(status_code=401, detail="No token")
     try:
@@ -60,5 +56,5 @@ def verify_token(token: str = None):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def get_current_user(token: str = Depends(verify_token)):
-    return {"email": token["sub"]}
+def get_current_user(token_data: dict = Depends(verify_token)):
+    return {"email": token_data["sub"]}
