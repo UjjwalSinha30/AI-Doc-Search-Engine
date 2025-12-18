@@ -11,7 +11,7 @@ import json
 from langchain_ollama import OllamaLLM
 
 # Local utilities & RAG pipeline
-from backend.api.utils import get_current_user
+from backend.utils.utils import get_current_user
 from backend.rag.pipeline import get_or_create_collection
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -29,7 +29,7 @@ llm = OllamaLLM(
 # ----------------------
 class ChatRequest(BaseModel):
     message: str
-    selected_docs: list[str] = None  # list of filenames to query 
+    document_id: int | None = None  # list of filenames to query 
 
 # ----------------------
 # Chat endpoint
@@ -47,9 +47,9 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     
     # build filter for selected docs
     where_clause = None
-    if request.selected_docs:
+    if request.document_id is not None:
         where_clause = {
-            "$or": [{"source": doc_name} for doc_name in request.selected_docs]
+            "document_id": request.document_id
         }
         
     # retrieve relevant chunks 
@@ -62,26 +62,18 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
        
     # 5. Build context and citation list
     context_parts = []    # Holds retrieved document text
-    sources = []          # Holds citation info
-    
-
-    # Retrieve relevant documents (RAG)
-    results = collection.query(
-        query_texts=[request.message],
-        n_results=6,
-        include=["documents", "metadatas"]
-    )
-
-    context_parts = []   # Holds retrieved document text
-    sources = []         # Holds citation info
+    sources = []          # Holds citation 
     
     # Build context and citation list
     if results["documents"] and results["documents"][0]:
         for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0])):
             context_parts.append(f"[{i+1}] {doc}")
-            sources.append({"source": meta["source"], "page": meta.get("page", "?")})
-
-    context = "\n\n".join(context_parts) if context_parts else "No relevant documents found."
+            sources.append({"source": meta.get("filename","unknown"), "page": meta.get("page", "?")})
+    
+    if not context_parts:
+        context = "No relevant documents found."
+    else:
+        context = "\n\n".join(context_parts)
 
     # Prompt for LLM
     prompt = f"""You are a helpful AI assistant. Answer using ONLY this context:

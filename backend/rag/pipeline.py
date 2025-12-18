@@ -70,6 +70,7 @@ def process_uploaded_file(
         return
 
     try:
+        # load document
         # 1. Extract text
         if file_path.suffix.lower() == ".pdf":
             loader = PyPDFLoader(str(file_path))
@@ -91,11 +92,42 @@ def process_uploaded_file(
         chunks = text_splitter.split_documents(documents)
         print(f"✂️ Split into {len(chunks)} chunks (1000 chars each)")
 
-        if len(chunks) == 0:
+        if not chunks:
             print("⚠️ No text extracted — skipping")
             return
+        
+        # === SAVE METADATA TO MYSQL ===
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.email == user_email).first()
+            if not user:
+                print(f"⚠️ User not found: {user_email}")
+                return
 
-        # 3. Embed & store in Chroma
+            doc_record = Document(
+                filename=original_filename,
+                file_path=str(file_path),
+                user_id=user.id,
+                page_count=len(documents),
+                chunk_count=len(chunks),
+            )
+
+            db.add(doc_record)
+            db.commit()
+            db.refresh(doc_record)
+
+            document_id = doc_record.id
+            print(f"💾 Document saved with ID: {document_id}")
+
+        except Exception as e:
+            print(f"❌ DB error: {e}")
+            db.rollback()
+            return
+        finally:
+            db.close()
+            
+    # 4. PREPARE CHROMA DATA
+        # Metadata helps with citations & debugging
         collection = get_or_create_collection(user_email)
         
         # Generate unique IDs for each chunk
@@ -103,53 +135,33 @@ def process_uploaded_file(
         
         # Extract actual text from each chunk
         texts = [chunk.page_content for chunk in chunks]
-        # Metadata helps with citations & debugging
+
         metadatas = []
         for i, chunk in enumerate(chunks):
             metadatas.append({
-                "source": original_filename,   # File name
-                "chunk_index": i,              # Chunk number
+                # "document_id": document_id,
+                "filename": original_filename,
+                "chunk_index": i,
                 "page": chunk.metadata.get("page", 0),
-                "total_chunks": len(chunks),
                 "user_email": user_email,
             })
 
+        # -----------------------
+        # 5. EMBED & STORE
+        # -----------------------
         # Create embeddings locally and store everything in Chroma
         collection.add(
             ids=ids,
             documents=texts,
             metadatas=metadatas,
-            embeddings=embeddings.embed_documents(texts)  # Local computation
+            embeddings=embeddings.embed_documents(texts),
         )
 
-        print(f"🎉 Stored {len(chunks)} embedded chunks in Chroma for {user_email}")
-        
-        # === SAVE METADATA TO MYSQL ===
-        db = SessionLocal()
-        try:
-            user = db.query(User).filter(User.email == user_email).first()
-            if not user:
-                print(f"⚠️ User not found in DB: {user_email}")
-            else:
-                doc_record = Document(
-                    filename=original_filename,
-                    file_path=str(file_path),
-                    user_id=user.id,
-                    page_count=len(documents),
-                    chunk_count=len(chunks),
-                )
-                db.add(doc_record)
-                db.commit()
-                print(f"💾 Saved document metadata to MySQL (ID: {doc_record.id})")
-        except Exception as e:
-            print(f"❌ Failed to save metadata to MySQL: {e}")
-            db.rollback()
-        finally:
-            db.close()
+        print(f"🎉 Stored {len(chunks)} chunks in Chroma")
 
     except Exception as e:
-        print(f"💥 Error processing {original_filename}: {e}")
-        raise e
+        print(f"💥 Processing failed: {e}")
+        raise
     
 
     

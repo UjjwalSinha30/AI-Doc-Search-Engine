@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.models.models import User
 from backend.schema.schemas import UserCreate, UserOut
-from .utils import (  # we'll move shared functions here
+from ..utils.utils import (  # we'll move shared functions here
     create_access_token,
     create_refresh_token,
     verify_token,
