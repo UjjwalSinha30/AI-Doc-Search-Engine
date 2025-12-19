@@ -84,7 +84,8 @@ async def upload_file(
             process_uploaded_file,
             file_path,
             file.filename,
-            current_user["email"]
+            current_user["email"],
+            file_hash
         )    
         
         # Step 7: Return success

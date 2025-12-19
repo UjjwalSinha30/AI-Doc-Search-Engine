@@ -57,10 +57,11 @@ text_splitter = RecursiveCharacterTextSplitter(
 def process_uploaded_file(
     file_path: str,
     original_filename: str,
-    user_email: str
+    user_email: str,
+    file_hash: str
 ) -> None:
     """
-    Background job: PDF/TXT/DOCX → text → chunks → FREE embeddings → ChromaDB
+    Background job: PDF/TXT/DOCX → text → chunks → embeddings → ChromaDB
     """
     print(f"🚀 Starting RAG processing: {original_filename} for {user_email}")
 
@@ -84,7 +85,9 @@ def process_uploaded_file(
         else:
             print(f"❌ Unsupported type: {file_path.suffix}")
             return
-
+        
+        
+        # documents = [page1_text, page2_text, ...]
         documents = loader.load()
         print(f"✅ Extracted {len(documents)} page(s)/section(s)")
 
@@ -110,6 +113,7 @@ def process_uploaded_file(
                 user_id=user.id,
                 page_count=len(documents),
                 chunk_count=len(chunks),
+                file_hash=file_hash,
             )
 
             db.add(doc_record)

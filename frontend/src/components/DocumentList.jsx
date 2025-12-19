@@ -26,7 +26,8 @@ export default function DocumentList({ onDocumentSelect }) {
     fetchDocuments();
   }, []);
 
-  const handleDelete = async (docId) => {
+  const handleDelete = async (docId, e) => {
+    
     if (!confirm("Delete this document? This cannot be undone.")) return;
 
     try {
@@ -47,7 +48,7 @@ export default function DocumentList({ onDocumentSelect }) {
   };
 
   const handleDocumentCLick = (doc) => {
-    onDocumentSelect?.(doc.filename);
+    onDocumentSelect?.(doc);
   }
 
   if (loading) {
@@ -76,7 +77,7 @@ export default function DocumentList({ onDocumentSelect }) {
           </button>
 
           <button
-            onClick={() => handleDelete(doc.id)}
+            onClick={(e) => handleDelete(doc.id, e)}
             className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
             title="Delete document"
           >
