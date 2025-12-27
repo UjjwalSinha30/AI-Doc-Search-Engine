@@ -125,7 +125,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       {/* Overlay */}
       {sidebarOpen && (
         <div
@@ -152,7 +152,7 @@ export default function Dashboard() {
         {/* Mobile Header */}
         <div className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b dark:border-gray-700 lg:hidden">
           <Menu
-            className="w-6 h-6 cursor-pointer"
+            className="w-6 h-6 cursor-pointer text-gray-800 dark:text-gray-100"
             onClick={() => setSidebarOpen(true)}
           />
           <h1 className="text-xl font-semibold dark:text-white">

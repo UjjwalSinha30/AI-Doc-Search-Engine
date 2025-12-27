@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './components/login'
@@ -14,6 +14,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/register" element={<Navigate to="/signup" replace />} /> {/* Add redirect */}
           <Route
             path="/dashboard"
             element={
@@ -22,6 +23,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="*" element={<div>404 - Page not found</div>} /> {/* Catch all */}
         </Routes>
       </BrowserRouter>
     </AuthProvider>

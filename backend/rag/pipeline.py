@@ -13,6 +13,12 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from backend.db.database import SessionLocal
 from backend.models.document import Document
 from backend.models.models import User
+import torch
+
+
+# safe gpu detection
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"🔥 Embeddings using device: {device.upper()} | GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only'}")
 
 
 # =========================
@@ -40,7 +46,7 @@ def get_or_create_collection(user_email: str):
 # HuggingFace Embeddings 
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",  # Fast & accurate (384 dims)
-    model_kwargs={'device': 'cpu'},  
+    model_kwargs={'device': device},  
 )
 
 # Splits text into chunks of 1000 characters

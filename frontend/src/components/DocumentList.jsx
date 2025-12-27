@@ -1,7 +1,5 @@
-// src/components/DocumentList.jsx
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
-
 
 export default function DocumentList({ onDocumentSelect }) {
   const [documents, setDocuments] = useState([]);
@@ -27,7 +25,6 @@ export default function DocumentList({ onDocumentSelect }) {
   }, []);
 
   const handleDelete = async (docId, e) => {
-    
     if (!confirm("Delete this document? This cannot be undone.")) return;
 
     try {
@@ -37,7 +34,6 @@ export default function DocumentList({ onDocumentSelect }) {
       });
 
       if (res.ok) {
-        // Remove from UI
         setDocuments(prev => prev.filter(doc => doc.id !== docId));
       } else {
         alert("Failed to delete document");
@@ -47,16 +43,16 @@ export default function DocumentList({ onDocumentSelect }) {
     }
   };
 
-  const handleDocumentCLick = (doc) => {
+  const handleDocumentClick = (doc) => {
     onDocumentSelect?.(doc);
   }
 
   if (loading) {
-    return <span className="text-sm text-gray-500">Loading documents...</span>;
+    return <span className="text-sm text-gray-500 dark:text-gray-400">Loading documents...</span>;
   }
 
   if (documents.length === 0) {
-    return <span className="text-sm text-gray-500 italic">No documents uploaded yet</span>;
+    return <span className="text-sm text-gray-500 dark:text-gray-400 italic">No documents uploaded yet</span>;
   }
 
   return (
@@ -64,14 +60,17 @@ export default function DocumentList({ onDocumentSelect }) {
       {documents.map(doc => (
         <div
           key={doc.id}
-          className="flex items-center justify-between p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition group"
+          className="flex items-center justify-between p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
         >
-          <button onClick={() => handleDocumentCLick(doc)} className="flex items-center gap-2 min-w-0 flex-1 text-left">
+          <button 
+            onClick={() => handleDocumentClick(doc)} 
+            className="flex items-center gap-2 min-w-0 flex-1 text-left"
+          >
             <span className="text-lg">📄</span>
             <span className="text-sm truncate max-w-[180px]" title={doc.filename}>
               {doc.filename}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               ({doc.page_count} pages)
             </span>
           </button>

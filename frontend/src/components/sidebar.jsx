@@ -10,11 +10,11 @@ export default function Sidebar({ closeSidebar, onDocumentSelect }) {
     { name: "Home", icon: Home, href: "/" },
     { name: "Users", icon: Users, href: "/users" },
     { name: "Settings", icon: Settings, href: "/settings" },
-    { name: "Documents", icon: FileText }, // ← Better icon!
+    { name: "Documents", icon: FileText },
   ];
 
   return (
-    <aside className="w-64 h-full bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col p-4 shadow-lg">
+    <aside className="w-64 h-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 flex flex-col p-4 shadow-lg border-r border-gray-200 dark:border-gray-700">
       {/* Mobile Close Button */}
       <div className="flex justify-between items-center lg:hidden mb-6">
         <h1 className="text-2xl font-bold">My App</h1>
@@ -34,7 +34,7 @@ export default function Sidebar({ closeSidebar, onDocumentSelect }) {
               <div key={item.name}>
                 <button
                   onClick={() => setShowDocuments(!showDocuments)}
-                  className="flex items-center justify-between p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors w-full text-left"
+                  className="flex items-center justify-between p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
                 >
                   <div className="flex items-center gap-3">
                     <Icon size={20} />
@@ -60,7 +60,7 @@ export default function Sidebar({ closeSidebar, onDocumentSelect }) {
             <a
               key={item.name}
               href={item.href}
-              className="flex items-center gap-3 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-3 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <Icon size={20} />
               <span>{item.name}</span>
