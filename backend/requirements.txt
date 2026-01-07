@@ -4,5 +4,9 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 sqlalchemy
-pydantic
+pydantic[email]
 python-dotenv
+pymysql
+chromadb
+email-validator
+pymysql

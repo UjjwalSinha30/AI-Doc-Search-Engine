@@ -16,6 +16,7 @@ from backend.models.models import User
 import torch
 
 
+
 # safe gpu detection
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🔥 Embeddings using device: {device.upper()} | GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only'}")
@@ -64,7 +65,8 @@ def process_uploaded_file(
     file_path: str,
     original_filename: str,
     user_email: str,
-    file_hash: str
+    file_hash: str,
+    document_id: int
 ) -> None:
     """
     Background job: PDF/TXT/DOCX → text → chunks → embeddings → ChromaDB
@@ -95,6 +97,12 @@ def process_uploaded_file(
         
         # documents = [page1_text, page2_text, ...]
         documents = loader.load()
+        if not documents:
+            raise RuntimeError(
+                f"PDF extraction failed (0 pages). "
+                f"File may be scanned or unsupported: {file_path}"
+            )    
+
         print(f"✅ Extracted {len(documents)} page(s)/section(s)")
 
         # Split large text into overlapping chunks
@@ -113,20 +121,14 @@ def process_uploaded_file(
                 print(f"⚠️ User not found: {user_email}")
                 return
 
-            doc_record = Document(
-                filename=original_filename,
-                file_path=str(file_path),
-                user_id=user.id,
-                page_count=len(documents),
-                chunk_count=len(chunks),
-                file_hash=file_hash,
-            )
+            doc_record = db.query(Document).filter(Document.id == document_id).first()
+            if not doc_record:
+                print("❌ Document not found for update")
+                return
 
-            db.add(doc_record)
+            doc_record.page_count = len(documents)
+            doc_record.chunk_count = len(chunks)
             db.commit()
-            db.refresh(doc_record)
-
-            document_id = doc_record.id
             print(f"💾 Document saved with ID: {document_id}")
 
         except Exception as e:
@@ -149,7 +151,7 @@ def process_uploaded_file(
         metadatas = []
         for i, chunk in enumerate(chunks):
             metadatas.append({
-                # "document_id": document_id,
+                "document_id": document_id,
                 "filename": original_filename,
                 "chunk_index": i,
                 "page": chunk.metadata.get("page", 0),
@@ -167,10 +169,14 @@ def process_uploaded_file(
             embeddings=embeddings.embed_documents(texts),
         )
 
+        print(f"🎉 SUCCESS: Stored {len(chunks)} chunks for document_id={document_id}")
+
         print(f"🎉 Stored {len(chunks)} chunks in Chroma")
 
     except Exception as e:
-        print(f"💥 Processing failed: {e}")
+        print(f"💥 PROCESSING FAILED: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise
     
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from backend.db.database import Base
 from datetime import datetime
@@ -9,7 +9,7 @@ class Document(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False, index=True)
-    file_hash = Column(String(64), nullable=False, unique=True, index=True)
+    file_hash = Column(String(64), nullable=False, index=True)
     file_path = Column(String(500), nullable=False)
     upload_date = Column(DateTime, default=datetime.utcnow)
     page_count = Column(Integer, default=0)
@@ -20,6 +20,10 @@ class Document(Base):
     
     # Relationship back to User
     user = relationship("User", back_populates="documents")
+
+    __table_args__= (
+        UniqueConstraint('file_hash', 'user_id', name='uix_filehash_userid'),
+    )
     
     def to_dict(self):
         return {

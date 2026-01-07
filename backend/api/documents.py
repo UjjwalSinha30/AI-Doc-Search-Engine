@@ -22,10 +22,15 @@ def list_documents(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Get user first
+    user = db.query(User).filter(User.email == current_user["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Query documents by user_id
     docs = (
         db.query(Document)
-        .join(User)
-        .filter(User.email == current_user["email"])
+        .filter(Document.user_id == user.id)
         .order_by(Document.upload_date.desc())
         .all()
     )
@@ -42,12 +47,17 @@ def get_document(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Get user first
+    user = db.query(User).filter(User.email == current_user["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Query by both doc_id and user_id
     doc = (
         db.query(Document)
-        .join(User)
         .filter(
             Document.id == doc_id,
-            User.email == current_user["email"]
+            Document.user_id == user.id
         )
         .first()
     )
@@ -57,19 +67,29 @@ def get_document(
 
     return doc.to_dict()
 
+
+# ============================
+# VIEW DOCUMENT FILE
+# ============================
 @router.get("/documents/{doc_id}/view")
 def view_document(
     doc_id: int,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Get user first
+    user = db.query(User).filter(User.email == current_user["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Query by both doc_id and user_id
     doc = db.query(Document).filter(
         Document.id == doc_id,
-        Document.user_email == current_user["email"]
+        Document.user_id == user.id
     ).first()
     
     if not doc:
-        raise HTTPException(status_code=404, detail="File not found on server")
+        raise HTTPException(status_code=404, detail="Document not found")
     
     file_path = Path(doc.file_path) 
     if not file_path.exists():
@@ -91,12 +111,17 @@ def delete_document(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Get user first
+    user = db.query(User).filter(User.email == current_user["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Query by both doc_id and user_id
     doc = (
         db.query(Document)
-        .join(User)
         .filter(
             Document.id == doc_id,
-            User.email == current_user["email"]
+            Document.user_id == user.id
         )
         .first()
     )
@@ -104,20 +129,31 @@ def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # 1 Delete embeddings from Chroma
-    collection = get_or_create_collection(current_user["email"])
-    collection.delete(where={"source": doc.filename})
+    try:
+        # 1️⃣ Delete embeddings from Chroma using CORRECT field
+        collection = get_or_create_collection(current_user["email"])
+        
+        # ✅ Use document_id instead of filename for reliable deletion
+        result = collection.delete(where={"document_id": doc_id})
+        print(f"🗑️ Deleted {len(result) if result else 0} chunks from Chroma for doc {doc_id}")
 
-    # 2️ Delete file from disk
-    file_path = Path(doc.file_path)
-    if file_path.exists():
-        file_path.unlink()
+        # 2️⃣ Delete file from disk
+        file_path = Path(doc.file_path)
+        if file_path.exists():
+            file_path.unlink()
+            print(f"🗑️ Deleted file: {file_path}")
 
-    # 3️ Delete DB record
-    db.delete(doc)
-    db.commit()
+        # 3️⃣ Delete DB record
+        db.delete(doc)
+        db.commit()
+        print(f"✅ Document {doc_id} deleted successfully")
 
-    return {
-        "message": "Document deleted successfully",
-        "document_id": doc_id
-    }
+        return {
+            "message": "Document deleted successfully",
+            "document_id": doc_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Delete failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")

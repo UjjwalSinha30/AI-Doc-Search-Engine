@@ -1,7 +1,8 @@
 # backend/api/auth.py
+import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.models.models import User
@@ -41,7 +42,10 @@ def login(
     access_token = create_access_token({"sub": user.email})
     refresh_token = create_refresh_token({"sub": user.email})
 
-    resp = JSONResponse(content={"access_token": access_token, "token_type": "bearer"})
+    resp = Response(
+        content=json.dumps({"access_token": access_token, "token_type": "bearer"}),
+        media_type="application/json"
+    )
     resp.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -50,6 +54,15 @@ def login(
         samesite="lax",
         max_age=7 * 24 * 60 * 60,
     )
+    return resp
+
+@router.post("/logout")
+def logout():
+    resp = Response(
+        content=json.dumps({"message": "Logged out"}),
+        media_type="application/json"
+    )
+    resp.delete_cookie(key="refresh_token")
     return resp
 
 

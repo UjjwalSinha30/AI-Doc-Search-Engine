@@ -1,20 +1,41 @@
 import { useState, useRef, useEffect } from "react";
 import HeaderWithUserProfile from "../components/navbar";
 import Sidebar from "../components/sidebar";
-import { Menu } from "lucide-react";
+import { Menu, Bell } from "lucide-react";
 import ChatInput from "../components/ChatInput";
+import { useAuth } from "../context/AuthContext";
 
 export default function Dashboard() {
+  const { user, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [documentsVersion, setDocumentsVersion] = useState(0);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [isStreaming, setIsStreaming] = useState(false); // ← NEW
   const messagesEndRef = useRef(null);
-
+  const abortControllerRef = useRef(null); // ← NEW
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // ← NEW: Stop streaming handler
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
   const handleNewMessage = async (text, metadata = null) => {
-    // Add user's message
     const userMsg = {
       id: Date.now(),
       role: "user",
@@ -23,12 +44,11 @@ export default function Dashboard() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
-    // Skip AI response for upload notifications
     if (metadata?.skipAIResponse) {
+      setDocumentsVersion((v) => v + 1);
       return;
     }
 
-    // Add AI placeholder
     const aiMsgId = Date.now() + 1;
     setMessages((prev) => [
       ...prev,
@@ -41,12 +61,21 @@ export default function Dashboard() {
       },
     ]);
 
+    // ← NEW: Create abort controller
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsStreaming(true);
+
     try {
       const response = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message: text }),
+        signal: controller.signal, // ← NEW: Attach signal
+        body: JSON.stringify({ 
+          message: text, 
+          document_id: selectedDocument?.id ?? null 
+        }),
       });
 
       if (!response.ok) throw new Error("Chat failed");
@@ -72,8 +101,8 @@ export default function Dashboard() {
             if (parsed.content) {
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === aiMsgId
-                    ? { ...m, content: m.content + parsed.content }
+                  m.id === aiMsgId 
+                    ? { ...m, content: m.content + parsed.content } 
                     : m
                 )
               );
@@ -83,155 +112,191 @@ export default function Dashboard() {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? { ...m, citations: parsed.citations, isStreaming: false }
+                    ? { ...m, citations: parsed.citations }
                     : m
                 )
               );
             }
-          } catch (e) {
-            // Ignore malformed JSON chunks — common in streaming
-            // The complete JSON will arrive in the next chunk
+          } catch {
+            // Silent ignore for streaming chunks
           }
         }
       }
     } catch (err) {
+      // Handle abort vs real error
+      if (err.name === "AbortError") {
+        console.log("Streaming stopped by user");
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, content: m.content || "Sorry, something went wrong." }
+              : m
+          )
+        );
+      }
+    } finally {
+      // ← NEW: Always cleanup
+      setIsStreaming(false);
+      abortControllerRef.current = null;
+      
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === aiMsgId
-            ? {
-                ...m,
-                content: "Sorry, I couldn't respond right now.",
-                isStreaming: false,
-              }
-            : m
+          m.id === aiMsgId ? { ...m, isStreaming: false } : m
         )
       );
     }
   };
 
-  // Handle document selection from sidebar
   const handleDocumentSelect = (doc) => {
     setSidebarOpen(false);
-
     const systemMsg = {
       id: Date.now(),
       role: "system",
-      content: `Now chatting about: **${doc.filename}** (${
-        doc.page_count
-      } page${doc.page_count !== 1 ? "s" : ""})`,
+      content: `Now chatting about: **${doc.filename}** (${doc.page_count} page${
+        doc.page_count !== 1 ? "s" : ""
+      })`,
     };
-
     setMessages((prev) => [...prev, systemMsg]);
+    setSelectedDocument(doc);
+  };
+
+  const getInitials = () => {
+    if (!user) return "??";
+    const name = user.name || user.email || "";
+    const parts = name.trim().split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : name.charAt(0).toUpperCase() || "??";
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-      {/* Overlay */}
+    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 overflow-hidden">
+      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 lg:hidden z-30"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300
-          ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-          }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 
+          transform transition-transform duration-300 ease-in-out lg:translate-x-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:w-72`}
       >
         <Sidebar
           closeSidebar={() => setSidebarOpen(false)}
           onDocumentSelect={handleDocumentSelect}
+          documentsVersion={documentsVersion}
         />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Mobile Header */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b dark:border-gray-700 lg:hidden">
-          <Menu
-            className="w-6 h-6 cursor-pointer text-gray-800 dark:text-gray-100"
-            onClick={() => setSidebarOpen(true)}
-          />
-          <h1 className="text-xl font-semibold dark:text-white">
-            AI Assistant
-          </h1>
-        </div>
+        <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              </button>
+              <h1 className="text-xl font-semibold">MindVault</h1>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              </button>
+
+              <button className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all">
+                {getInitials()}
+              </button>
+            </div>
+          </div>
+        </header>
 
         {/* Desktop Header */}
-        <div className="hidden lg:block">
-          <HeaderWithUserProfile />
+        <div className="hidden lg:block sticky top-0 z-30 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+          <HeaderWithUserProfile user={user} />
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
+        {/* Messages Area */}
+        <main className="flex-1 overflow-y-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-6 bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-950/50">
           {messages.length === 0 ? (
-            <div className="text-center mt-32">
-              <h2 className="text-4xl font-bold text-gray-800 dark:text-white mb-4">
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100 mb-4">
                 Your Private AI Assistant
               </h2>
-              <p className="text-lg text-gray-600 dark:text-gray-400">
-                Upload documents and ask anything — your data never leaves your
-                machine
+              <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-md">
+                Upload your documents securely and ask anything — your data stays private.
               </p>
             </div>
           ) : (
             messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`w-full my-4 ${
-                  msg.role === "system"
-                    ? "flex justify-center"
-                    : msg.role === "user"
-                    ? "flex justify-end"
-                    : "flex justify-start"
-                }`}
+                className={`flex ${
+                  msg.role === "user"
+                    ? "justify-end"
+                    : msg.role === "system"
+                    ? "justify-center"
+                    : "justify-start"
+                } mb-6 animate-fade-in`}
               >
                 {msg.role === "system" ? (
-                  <div className="px-6 py-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
+                  <div className="px-5 py-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium shadow-sm">
                     {msg.content}
                   </div>
                 ) : (
                   <div
-                    className={`max-w-3xl px-6 py-4 rounded-2xl shadow-md ${
-                      msg.role === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100"
-                    }`}
+                    className={`max-w-[85%] sm:max-w-2xl px-5 py-4 rounded-2xl shadow-sm transition-all duration-200 border border-transparent
+                      ${
+                        msg.role === "user"
+                          ? "bg-blue-600 text-white rounded-br-none"
+                          : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none"
+                      }`}
                   >
-                    <p className="whitespace-pre-wrap text-lg leading-relaxed">
-                      {msg.content || (msg.isStreaming && "...")}
-                    </p>
+                    <div className="whitespace-pre-wrap text-[15px] leading-relaxed">
+                      {msg.content || (msg.isStreaming && <span className="text-gray-400">Thinking...</span>)}
+                    </div>
 
                     {msg.file && (
-                      <p className="text-sm opacity-90 mt-3">
-                        {msg.file.status === "error" ? "Failed" : "Uploaded"}:{" "}
-                        {msg.file.name}
+                      <p className="text-xs mt-2 opacity-80">
+                        {msg.file.status === "error" ? "Upload failed" : "Uploaded"}: {msg.file.name}
                       </p>
                     )}
 
                     {msg.isStreaming && (
-                      <span className="inline-flex items-center mt-2">
-                        <span className="animate-bounce delay-0">.</span>
-                        <span className="animate-bounce delay-100">.</span>
-                        <span className="animate-bounce delay-200">.</span>
-                      </span>
+                      <div className="flex gap-1 mt-2">
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:0ms]"></span>
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:150ms]"></span>
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:300ms]"></span>
+                      </div>
                     )}
 
                     {msg.citations?.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                          Sources:
+                      <div className="mt-4 pt-4 border-t border-gray-200/60 dark:border-gray-700/50">
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-400 mb-2.5 tracking-wide uppercase">
+                          Sources
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {msg.citations.map((cite, i) => (
                             <span
                               key={i}
-                              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium
+                                         bg-gray-100/80 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300
+                                         rounded-full border border-gray-200/70 dark:border-gray-700/60
+                                         hover:bg-gray-200 dark:hover:bg-gray-700/80 transition-colors
+                                         cursor-pointer"
                             >
-                              [{i + 1}] {cite.source} • Page {cite.page}
+                              <span className="font-bold opacity-70">[{i+1}]</span>
+                              <span className="truncate max-w-[180px]">{cite.source}</span>
+                              <span className="opacity-60">p.{cite.page}</span>
                             </span>
                           ))}
                         </div>
@@ -243,12 +308,16 @@ export default function Dashboard() {
             ))
           )}
           <div ref={messagesEndRef} />
-        </div>
+        </main>
 
-        {/* Chat Input */}
-        <div className="fixed bottom-0 left-0 lg:left-64 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-          <div className="max-w-4xl mx-auto py-4 px-4">
-            <ChatInput onSend={handleNewMessage} />
+        {/* Chat Input - Pass isStreaming and stop handler */}
+        <div className="sticky bottom-0 z-30 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 shadow-lg">
+          <div className="mx-auto w-full max-w-screen-2xl px-4 sm:px-6 lg:px-8">
+            <ChatInput 
+              onSend={handleNewMessage} 
+              isStreaming={isStreaming}
+              onStop={handleStopStreaming}
+            />
           </div>
         </div>
       </div>

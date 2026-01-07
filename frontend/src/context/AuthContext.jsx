@@ -1,92 +1,130 @@
-import { createContext, useState, useEffect, useContext } from 'react'
-import api from '../api/api'
+import { createContext, useState, useEffect, useContext } from 'react';
+import api from '../api/api'; // your axios instance
 
-const AuthContext = createContext()
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null)
-    const [loading, setLoading] = useState(true)
-    
-    // Login function
-    const login = async (email, password) => {
-        // Create form data (FastAPI expects form data, not JSON)
-        const formData = new URLSearchParams()
-        formData.append('username', email)
-        formData.append('password', password)
-        
-        const res = await api.post('/login', formData, {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        })
-        setUser({ email })   // update user state
-        localStorage.setItem('access_token', res.data.access_token) // store token for future requests
-    }
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-    // Signup function
-    const signup = async (name, email, password) => {
-    await api.post('/signup', { name, email, password })
-    await login(email, password) // automatically log in after signup
-  }
+  // Load user on mount if token exists
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
 
-    // Logout function
-    const logout = async () => {
-        setUser(null) // clear user state
-        localStorage.removeItem('access_token')
-    }
-    // Refresh token function
-  const refreshToken = async () => {
+      try {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // backend exposes /me under /api/me (api.js baseURL is /api)
+        const res = await api.get('/me');
+        setUser(res.data);
+      } catch (err) {
+        console.error('Failed to load user:', err);
+        localStorage.removeItem('access_token');
+        delete api.defaults.headers.common['Authorization'];
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
+
+  // Token refresh interceptor
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          try {
+            const refreshRes = await api.post('/refresh');
+            const newToken = refreshRes.data.access_token;
+            localStorage.setItem('access_token', newToken);
+            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            return api(originalRequest);
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            localStorage.removeItem('access_token');
+            delete api.defaults.headers.common['Authorization'];
+            setUser(null);
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, []);
+
+  const login = async (email, password) => {
     try {
-      const res = await api.post('/refresh') // call backend refresh endpoint
-      localStorage.setItem('access_token', res.data.access_token) // update token
-      return res.data.access_token
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const response = await api.post('/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+
+      const { access_token } = response.data;
+      // store access token and set header for subsequent requests
+      localStorage.setItem('access_token', access_token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+
+      // backend sets refresh cookie on /login; now fetch /me
+      const userRes = await api.get('/me');
+      setUser(userRes.data);
+      return userRes.data;
     } catch (err) {
-      logout() // if refresh fails, log out user
+      console.error('Login failed', err);
+      throw err;
     }
+  };
+
+  const signup = async (name, email, password) => {
+    try {
+      await api.post('/signup', { name, email, password });
+      await login(email, password);
+    } catch (err) {
+      console.error('Signup failed', err);
+      throw err;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await api.post('/logout');
+    } catch (err) {
+      // ignore server errors on logout
+    }
+    localStorage.removeItem('access_token');
+    delete api.defaults.headers.common['Authorization'];
+    setUser(null);
+  };
+
+  const value = { user, isLoading, login, signup, logout };
+
+  // console.log('AuthProvider render → isLoading:', isLoading, 'user:', user);
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
   }
-    // Axios interceptor to automatically refresh token on 401 errors
-    useEffect(()=> {
-        const interceptor = api.interceptors.response.use(
-            (res) => res,
-            async (err) => {
-                const originalRequest = err.config
-                // check if 401 (unauthorized) and retry not attempted yet
-                if (err.response.status === 401 && !originalRequest._retry) {
-                    originalRequest._retry = true
-                    await refreshToken() // refresh token
-                    originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('access_token')}`
-                    return api(originalRequest) // retry original request
-                }
-                return Promise.reject(err) // otherwise reject error
-            }
-        )
-        return () => api.interceptors.response.eject(interceptor) // cleanup on unmount
-    }, [])
-
-    // On mount, check if user is already logged in (token in localStorage)
-    useEffect(() => {
-        const loadUser = async () => {
-            const token = localStorage.getItem('access_token')
-            if (token){
-                api.defaults.headers.common['Authorization'] = `Bearer ${token}`// set default auth header
-                try {
-          const res = await api.get('/me') // fetch user info from backend
-          setUser(res.data) // set user state
-        } catch (err) {
-          localStorage.removeItem('access_token') // invalid token, remove it
-        }
-            }
-            setLoading(false) // finished checking auth
-        }
-        loadUser()
-    }, [])
-
-    return (
-        <AuthContext.Provider value={{ user, login, signup, logout, refreshToken }}>
-            {!loading && children}
-        </AuthContext.Provider>
-    )
-}
-
-// Custom hook to easily access AuthContext in components
-export const useAuth = () => useContext(AuthContext)
+  return context;
+};

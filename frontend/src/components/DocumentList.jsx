@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, FileText, AlertCircle, Loader2 } from "lucide-react";
 
-export default function DocumentList({ onDocumentSelect }) {
+export default function DocumentList({ onDocumentSelect, documentsVersion = 0 }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDocuments = () => {
+    setLoading(true);
     fetch("http://localhost:8000/api/documents", {
       credentials: "include",
     })
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setDocuments(data);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to fetch documents:", err);
         setLoading(false);
       });
@@ -22,7 +23,8 @@ export default function DocumentList({ onDocumentSelect }) {
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentsVersion]);
 
   const handleDelete = async (docId, e) => {
     if (!confirm("Delete this document? This cannot be undone.")) return;
@@ -45,7 +47,7 @@ export default function DocumentList({ onDocumentSelect }) {
 
   const handleDocumentClick = (doc) => {
     onDocumentSelect?.(doc);
-  }
+  };
 
   if (loading) {
     return <span className="text-sm text-gray-500 dark:text-gray-400">Loading documents...</span>;
