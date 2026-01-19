@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
-from backend.db.database import Base
+from db.database import Base
 from datetime import datetime
 
 

@@ -3,11 +3,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import json
 import logging
-from backend.api.helpers import summarize, search, extract, rerank_chunks
-from backend.utils.utils import get_current_user
+from api.helpers import summarize, search, extract, rerank_chunks
+from utils.utils import get_current_user
 
 # Local utilities & RAG pipeline
-from backend.rag.pipeline import get_or_create_collection
+from rag.pipeline import get_or_create_collection
 
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama

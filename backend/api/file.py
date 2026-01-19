@@ -2,13 +2,13 @@ import os
 import shutil
 from fastapi import APIRouter, File, UploadFile, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from backend.utils.utils import get_current_user
-from backend.rag.pipeline import process_uploaded_file
-from backend.utils.file_hash import compute_file_hash
+from utils.utils import get_current_user
+from rag.pipeline import process_uploaded_file
+from utils.file_hash import compute_file_hash
 from sqlalchemy.orm import Session
-from backend.db.database import get_db  
-from backend.models.document import Document
-from backend.models.models import User
+from db.database import get_db  
+from models.document import Document
+from models.models import User
 import uuid
 
 

@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { Bell, LogOut, Settings, User, ChevronDown } from "lucide-react";
+import { useAuth } from "../context/AuthContext"; // adjust path
 
-// Mock Auth Context
-const useAuth = () => ({
-  logout: () => console.log("Logged out")
-});
-
-export default function HeaderWithUserProfile({ user = { name: "John Doe", email: "john@example.com" } }) {
+export default function HeaderWithUserProfile({ user }) {
   const { logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -19,6 +15,7 @@ export default function HeaderWithUserProfile({ user = { name: "John Doe", email
       ? (parts[0][0] + parts[1][0]).toUpperCase()
       : (name.charAt(0) || "?").toUpperCase();
   };
+  
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
 

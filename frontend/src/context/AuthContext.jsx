@@ -1,6 +1,8 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import api from '../api/api'; // your axios instance
 
+
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -32,6 +34,8 @@ export const AuthProvider = ({ children }) => {
 
     loadUser();
   }, []);
+
+  
 
   // Token refresh interceptor
   useEffect(() => {

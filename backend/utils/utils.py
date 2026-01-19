@@ -4,9 +4,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Cookie, HTTPException, Depends
 from sqlalchemy.orm import Session
-from backend.models.models import User
-from backend.schema.schemas import UserCreate
-from backend.db.database import get_db
+from models.models import User
+from schema.schemas import UserCreate
+from db.database import get_db
 
 SECRET_KEY = "your-super-secret-jwt-key-change-in-prod"
 ALGORITHM = "HS256"

@@ -233,7 +233,7 @@ export default function Dashboard() {
                 Your Private AI Assistant
               </h2>
               <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-md">
-                Upload your documents securely and ask anything — your data stays private.
+                Upload your documents
               </p>
             </div>
           ) : (

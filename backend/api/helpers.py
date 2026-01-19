@@ -1,6 +1,6 @@
 # backend/api/helpers.py
 from typing import List, Dict, Any, Tuple
-from backend.rag.pipeline import get_or_create_collection
+from rag.pipeline import get_or_create_collection
 from sentence_transformers import CrossEncoder
 import torch
 import numpy as np

@@ -10,9 +10,9 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, Te
 
 # FREE LOCAL EMBEDDINGS — no API key needed!
 from langchain_huggingface import HuggingFaceEmbeddings
-from backend.db.database import SessionLocal
-from backend.models.document import Document
-from backend.models.models import User
+from db.database import SessionLocal
+from models.document import Document
+from models.models import User
 import torch
 
 
