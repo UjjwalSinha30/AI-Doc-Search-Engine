@@ -11,6 +11,9 @@ RUN npm run build
 
 FROM nginx:alpine
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Copies built static files into Nginx web root
 COPY --from=build /app/dist /usr/share/nginx/html
 

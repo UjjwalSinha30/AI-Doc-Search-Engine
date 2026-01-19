@@ -26,8 +26,8 @@ print(f"🔥 Embeddings using device: {device.upper()} | GPU: {torch.cuda.get_de
 # CONFIG
 # =========================
 # Directory where ChromaDB data will be stored on disk
-CHROMA_DIR = Path("chroma_db")
-CHROMA_DIR.mkdir(exist_ok=True)  # Create folder if not exists
+CHROMA_DIR = Path("chroma_data/chroma_db")
+CHROMA_DIR.mkdir(exist_ok=True, parents=True)  # Create folder if not exists
 
 # Persistent Chroma client (data survives server restart)
 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
