@@ -9,7 +9,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password123
       MYSQL_DATABASE: newdatabase
-
     ports:
       - "3306:3306"
     volumes:
@@ -18,10 +17,29 @@ services:
       - rag_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD:-rootpassword}"]   
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 5
-    command: --default-authentication-plugin=mysql_native_password  
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Ollama Service (LLM inference engine)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - rag_network
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   # FastAPI Application
   backend:
@@ -42,14 +60,16 @@ services:
     depends_on:
         mysql:
           condition: service_healthy
+        ollama:
+          condition: service_healthy
     healthcheck:
         test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
         interval: 30s
         timeout: 10s
-        retries: 3
-        start_period: 40s
+        retries: 5
+        start_period: 60s
   
-  # react frontend
+  # React frontend
   frontend:
     build:
       context: ./frontend
@@ -74,10 +94,9 @@ volumes:
      driver: local
   chroma_data:
      driver: local
+  ollama_data:
+     driver: local
 
 networks:
   rag_network:
     driver: bridge
-      
-
-
